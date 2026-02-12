@@ -5,14 +5,15 @@ import csv
 import math
 
 app = Flask(__name__)
-app.secret_key = "secretkey123"
+app.secret_key = "secret123"
 
+# -------- SETTINGS --------
 CLASS_LAT = 28.425335
 CLASS_LON = 77.326069
 ALLOWED_RADIUS = 20
 TEACHER_PASSWORD = "admin123"
 
-# ---------- DATABASE ----------
+# -------- DATABASE INIT --------
 def init_db():
     conn = sqlite3.connect("attendance.db")
     c = conn.cursor()
@@ -40,7 +41,7 @@ def init_db():
 
 init_db()
 
-# ---------- HELPER ----------
+# -------- HELPERS --------
 def get_status():
     conn = sqlite3.connect("attendance.db")
     c = conn.cursor()
@@ -68,18 +69,15 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
     return R * c
 
-# ---------- STUDENT PAGE ----------
+# -------- STUDENT PAGE --------
 @app.route("/")
 def home():
     if get_status() == "closed":
         return "<h3>❌ Attendance is CLOSED by teacher.</h3>"
 
-    if session.get("submitted"):
-        return "<h3>⚠️ You already submitted attendance.</h3>"
-
     return """
     <h2>Class Attendance</h2>
-    <form method="POST" action="/submit">
+    <form method="POST" action="/submit" onsubmit="return checkLocation()">
         Roll:<br>
         <input name="roll" required><br><br>
 
@@ -93,22 +91,35 @@ def home():
     </form>
 
     <script>
-        navigator.geolocation.getCurrentPosition(function(position) {
+    let locationReady = false;
+
+    navigator.geolocation.getCurrentPosition(
+        function(position) {
             document.getElementById("lat").value = position.coords.latitude;
             document.getElementById("lon").value = position.coords.longitude;
-        });
+            locationReady = true;
+        },
+        function(error) {
+            alert("Please allow location access.");
+        }
+    );
+
+    function checkLocation() {
+        if (!locationReady) {
+            alert("Waiting for location...");
+            return false;
+        }
+        return true;
+    }
     </script>
     """
 
-# ---------- SUBMIT ----------
+# -------- SUBMIT --------
 @app.route("/submit", methods=["POST"])
 def submit():
 
     if get_status() == "closed":
         return "<h3>❌ Attendance Closed</h3>"
-
-    if session.get("submitted"):
-        return "<h3>⚠️ Already Submitted</h3>"
 
     roll = request.form["roll"]
     name = request.form["name"]
@@ -116,7 +127,7 @@ def submit():
     lon = request.form["lon"]
 
     if not lat or not lon:
-        return "<h3>❌ Location required</h3>"
+        return "<h3>❌ Location Required</h3>"
 
     distance = calculate_distance(float(lat), float(lon), CLASS_LAT, CLASS_LON)
 
@@ -140,11 +151,9 @@ def submit():
     conn.commit()
     conn.close()
 
-    session["submitted"] = True
-
     return "<h3>✅ Attendance Marked</h3>"
 
-# ---------- TEACHER LOGIN ----------
+# -------- TEACHER LOGIN --------
 @app.route("/teacher", methods=["GET", "POST"])
 def teacher():
     if request.method == "POST":
@@ -163,7 +172,7 @@ def teacher():
     </form>
     """
 
-# ---------- DASHBOARD ----------
+# -------- DASHBOARD --------
 @app.route("/dashboard")
 def dashboard():
     if not session.get("teacher"):
@@ -179,19 +188,19 @@ def dashboard():
     conn.close()
 
     html = f"<h2>Dashboard (Status: {status.upper()})</h2>"
-    html += "<a href='/open'>Open Attendance</a> | "
-    html += "<a href='/close'>Close Attendance</a><br><br>"
+    html += "<a href='/open'>Open</a> | <a href='/close'>Close</a><br><br>"
 
     html += "<table border=1><tr><th>Roll</th><th>Name</th><th>Time</th></tr>"
     for r in records:
         html += f"<tr><td>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td></tr>"
     html += "</table><br>"
+
     html += "<a href='/download'>Download CSV</a><br><br>"
     html += "<a href='/logout'>Logout</a>"
 
     return html
 
-# ---------- OPEN ----------
+# -------- OPEN/CLOSE --------
 @app.route("/open")
 def open_attendance():
     if not session.get("teacher"):
@@ -199,7 +208,6 @@ def open_attendance():
     set_status("open")
     return redirect(url_for("dashboard"))
 
-# ---------- CLOSE ----------
 @app.route("/close")
 def close_attendance():
     if not session.get("teacher"):
@@ -207,7 +215,7 @@ def close_attendance():
     set_status("closed")
     return redirect(url_for("dashboard"))
 
-# ---------- DOWNLOAD ----------
+# -------- DOWNLOAD --------
 @app.route("/download")
 def download():
     if not session.get("teacher"):
@@ -229,7 +237,6 @@ def download():
 
     return send_file(filename, as_attachment=True)
 
-# ---------- LOGOUT ----------
 @app.route("/logout")
 def logout():
     session.clear()
