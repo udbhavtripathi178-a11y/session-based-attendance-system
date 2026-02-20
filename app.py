@@ -11,7 +11,7 @@ app.secret_key = "supersecretkey123"
 # -------- CLASSROOM LOCATION --------
 CLASS_LAT = 28.425335
 CLASS_LON = 77.326069
-ALLOWED_RADIUS = 20  # meters
+ALLOWED_RADIUS = 50   # ✅ 50 meters
 
 TEACHER_PASSWORD = "admin123"
 
@@ -19,6 +19,8 @@ TEACHER_PASSWORD = "admin123"
 def init_db():
     conn = sqlite3.connect("attendance.db")
     cursor = conn.cursor()
+
+    # Attendance Table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS attendance (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,6 +31,19 @@ def init_db():
             date TEXT
         )
     """)
+
+    # Settings Table (Open/Close Control)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS settings (
+            id INTEGER PRIMARY KEY,
+            attendance_open INTEGER
+        )
+    """)
+
+    cursor.execute("SELECT * FROM settings WHERE id=1")
+    if not cursor.fetchone():
+        cursor.execute("INSERT INTO settings (id, attendance_open) VALUES (1, 0)")
+
     conn.commit()
     conn.close()
 
@@ -100,26 +115,35 @@ def home():
 @app.route("/submit", methods=["POST"])
 def submit():
 
+    conn = sqlite3.connect("attendance.db")
+    cursor = conn.cursor()
+
+    # Check attendance status
+    cursor.execute("SELECT attendance_open FROM settings WHERE id=1")
+    status = cursor.fetchone()[0]
+
+    if status == 0:
+        conn.close()
+        return "<h3>⚠️ Attendance is currently CLOSED by teacher.</h3>"
+
     roll = request.form["roll"].strip()
     name = request.form["name"].strip()
     lat = request.form["lat"]
     lon = request.form["lon"]
 
     if not lat or not lon:
+        conn.close()
         return "<h3>❌ Please enable location and refresh page.</h3>"
 
     distance = calculate_distance(float(lat), float(lon), CLASS_LAT, CLASS_LON)
 
     if distance > ALLOWED_RADIUS:
-        return "<h3>❌ You are outside classroom (20m limit)</h3>"
+        conn.close()
+        return "<h3>❌ You are outside classroom (50m limit)</h3>"
 
     today = datetime.now().strftime("%Y-%m-%d")
     time_now = datetime.now().strftime("%H:%M:%S")
-
     ip_address = request.remote_addr
-
-    conn = sqlite3.connect("attendance.db")
-    cursor = conn.cursor()
 
     # Roll duplicate check
     cursor.execute("SELECT * FROM attendance WHERE roll=? AND date=?", (roll, today))
@@ -172,11 +196,22 @@ def dashboard():
 
     conn = sqlite3.connect("attendance.db")
     cursor = conn.cursor()
+
+    cursor.execute("SELECT attendance_open FROM settings WHERE id=1")
+    status = cursor.fetchone()[0]
+
     cursor.execute("SELECT roll, name, time, ip FROM attendance WHERE date=?", (today,))
     records = cursor.fetchall()
+
     conn.close()
 
     html = "<h2>Today's Attendance</h2>"
+
+    if status == 0:
+        html += '<a href="/open"><button>Open Attendance</button></a><br><br>'
+    else:
+        html += '<a href="/close"><button>Close Attendance</button></a><br><br>'
+
     html += "<table border=1><tr><th>Roll</th><th>Name</th><th>Time</th><th>IP</th></tr>"
 
     for r in records:
@@ -187,6 +222,34 @@ def dashboard():
     html += '<a href="/logout">Logout</a>'
 
     return html
+
+# -------- OPEN ATTENDANCE --------
+@app.route("/open")
+def open_attendance():
+    if not session.get("teacher"):
+        return redirect(url_for("teacher_login"))
+
+    conn = sqlite3.connect("attendance.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE settings SET attendance_open=1 WHERE id=1")
+    conn.commit()
+    conn.close()
+
+    return redirect(url_for("dashboard"))
+
+# -------- CLOSE ATTENDANCE --------
+@app.route("/close")
+def close_attendance():
+    if not session.get("teacher"):
+        return redirect(url_for("teacher_login"))
+
+    conn = sqlite3.connect("attendance.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE settings SET attendance_open=0 WHERE id=1")
+    conn.commit()
+    conn.close()
+
+    return redirect(url_for("dashboard"))
 
 # -------- DOWNLOAD CSV --------
 @app.route("/download")
