@@ -9,8 +9,8 @@ app = Flask(__name__)
 app.secret_key = "supersecretkey123"
 
 # -------- CLASSROOM LOCATION --------
-CLASS_LAT = 28.425335
-CLASS_LON = 77.326069
+CLASS_LAT = 28.423591
+CLASS_LON = 77.065827
 ALLOWED_RADIUS = 50   # ✅ 50 meters
 
 TEACHER_PASSWORD = "admin123"
@@ -282,3 +282,4 @@ def logout():
 # -------- RUN --------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
