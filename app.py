@@ -187,6 +187,8 @@ def teacher_login():
     """
 
 # -------- DASHBOARD --------
+from flask import render_template
+
 @app.route("/dashboard")
 def dashboard():
     if not session.get("teacher"):
@@ -205,23 +207,11 @@ def dashboard():
 
     conn.close()
 
-    html = "<h2>Today's Attendance</h2>"
+    return render_template("dashboard.html",
+                           today=today,
+                           status=status,
+                           records=records)
 
-    if status == 0:
-        html += '<a href="/open"><button>Open Attendance</button></a><br><br>'
-    else:
-        html += '<a href="/close"><button>Close Attendance</button></a><br><br>'
-
-    html += "<table border=1><tr><th>Roll</th><th>Name</th><th>Time</th><th>IP</th></tr>"
-
-    for r in records:
-        html += f"<tr><td>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td></tr>"
-
-    html += "</table><br>"
-    html += '<a href="/download">Download CSV</a><br><br>'
-    html += '<a href="/logout">Logout</a>'
-
-    return html
 
 # -------- OPEN ATTENDANCE --------
 @app.route("/open")
@@ -282,4 +272,5 @@ def logout():
 # -------- RUN --------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
 
