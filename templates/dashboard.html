@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Teacher Dashboard | VeriClass</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+
+<style>
+body {
+    margin: 0;
+    font-family: 'Poppins', sans-serif;
+    background: #f4f6f9;
+}
+
+.header {
+    background: linear-gradient(135deg, #4e73df, #1cc88a);
+    padding: 20px;
+    color: white;
+    text-align: center;
+}
+
+.container {
+    padding: 30px;
+}
+
+.card {
+    background: white;
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+button {
+    padding: 10px 18px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-right: 10px;
+    transition: 0.3s;
+}
+
+.open-btn {
+    background: #1cc88a;
+    color: white;
+}
+
+.close-btn {
+    background: #e74a3b;
+    color: white;
+}
+
+.download-btn {
+    background: #4e73df;
+    color: white;
+}
+
+.logout-btn {
+    background: gray;
+    color: white;
+}
+
+button:hover {
+    opacity: 0.8;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+th, td {
+    padding: 10px;
+    text-align: center;
+}
+
+th {
+    background: #4e73df;
+    color: white;
+}
+
+tr:nth-child(even) {
+    background: #f2f2f2;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h2>📊 Teacher Dashboard</h2>
+    <p>Smart Geo-Verified Attendance System</p>
+</div>
+
+<div class="container">
+
+    <div class="card">
+        <h3>📅 Today's Date: {{ today }}</h3>
+        <p>Status:
+            {% if status == 1 %}
+                <span style="color:green;font-weight:600;">Attendance OPEN</span>
+            {% else %}
+                <span style="color:red;font-weight:600;">Attendance CLOSED</span>
+            {% endif %}
+        </p>
+
+        {% if status == 0 %}
+            <a href="/open"><button class="open-btn">Open Attendance</button></a>
+        {% else %}
+            <a href="/close"><button class="close-btn">Close Attendance</button></a>
+        {% endif %}
+
+        <a href="/download"><button class="download-btn">Download CSV</button></a>
+        <a href="/logout"><button class="logout-btn">Logout</button></a>
+    </div>
+
+    <div class="card">
+        <h3>📝 Today's Attendance Records</h3>
+
+        <table>
+            <tr>
+                <th>Roll</th>
+                <th>Name</th>
+                <th>Time</th>
+                <th>IP Address</th>
+            </tr>
+
+            {% for r in records %}
+            <tr>
+                <td>{{ r[0] }}</td>
+                <td>{{ r[1] }}</td>
+                <td>{{ r[2] }}</td>
+                <td>{{ r[3] }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+
+    </div>
+
+</div>
+
+</body>
+</html>
