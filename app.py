@@ -8,8 +8,8 @@ app = Flask(__name__)
 app.secret_key = "supersecretkey123"
 
 # -------- CLASSROOM LOCATION --------
-CLASS_LAT = 28.425335
-CLASS_LON = 77.326069
+CLASS_LAT = 28.423591
+CLASS_LON = 77.065827
 ALLOWED_RADIUS = 30
 
 TEACHER_PASSWORD = "admin123"
