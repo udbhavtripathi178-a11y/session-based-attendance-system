@@ -1,17 +1,16 @@
-from flask import Flask, request, redirect, url_for, session, send_file
+from flask import Flask, request, redirect, url_for, session, send_file, render_template
 from datetime import datetime
 import sqlite3
 import math
 import csv
-import os
 
 app = Flask(__name__)
 app.secret_key = "supersecretkey123"
 
 # -------- CLASSROOM LOCATION --------
-CLASS_LAT = 28.423591
-CLASS_LON = 77.065827
-ALLOWED_RADIUS = 50   # ✅ 50 meters
+CLASS_LAT = 28.425335
+CLASS_LON = 77.326069
+ALLOWED_RADIUS = 50
 
 TEACHER_PASSWORD = "admin123"
 
@@ -20,7 +19,6 @@ def init_db():
     conn = sqlite3.connect("attendance.db")
     cursor = conn.cursor()
 
-    # Attendance Table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS attendance (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,7 +30,6 @@ def init_db():
         )
     """)
 
-    # Settings Table (Open/Close Control)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS settings (
             id INTEGER PRIMARY KEY,
@@ -63,103 +60,60 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
     return R * c
 
-# -------- STUDENT PAGE --------
+# -------- HOME (FRONTEND CONNECTED) --------
 @app.route("/")
 def home():
-    return """
-    <h2>Class Attendance</h2>
+    return render_template("index.html")
 
-    <p id="locationStatus" style="color:red;">⚠️ Checking Location...</p>
-
-    <form method="POST" action="/submit" onsubmit="return checkLocation()">
-        Roll Number:<br>
-        <input name="roll" required><br><br>
-
-        Name:<br>
-        <input name="name" required><br><br>
-
-        <input type="hidden" name="lat" id="lat">
-        <input type="hidden" name="lon" id="lon">
-
-        <button type="submit" id="submitBtn" disabled>
-            Submit Attendance
-        </button>
-    </form>
-
-    <script>
-    function checkLocation() {
-        if (!document.getElementById("lat").value) {
-            alert("❌ Please enable location first!");
-            return false;
-        }
-        return true;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-        function(position) {
-            document.getElementById("lat").value = position.coords.latitude;
-            document.getElementById("lon").value = position.coords.longitude;
-            document.getElementById("locationStatus").innerHTML = "✅ Location Verified";
-            document.getElementById("locationStatus").style.color = "green";
-            document.getElementById("submitBtn").disabled = false;
-        },
-        function() {
-            document.getElementById("locationStatus").innerHTML = "❌ Location access required!";
-            document.getElementById("submitBtn").disabled = true;
-        }
-    );
-    </script>
-    """
-
-# -------- SUBMIT ATTENDANCE --------
+# -------- SUBMIT --------
 @app.route("/submit", methods=["POST"])
 def submit():
 
     conn = sqlite3.connect("attendance.db")
     cursor = conn.cursor()
 
-    # Check attendance status
+    # Check attendance open or closed
     cursor.execute("SELECT attendance_open FROM settings WHERE id=1")
     status = cursor.fetchone()[0]
 
     if status == 0:
         conn.close()
-        return "<h3>⚠️ Attendance is currently CLOSED by teacher.</h3>"
+        return "<h3>⚠️ Attendance is CLOSED</h3>"
 
-    roll = request.form["roll"].strip()
-    name = request.form["name"].strip()
+    roll = request.form["roll"]
+    name = request.form["name"]
     lat = request.form["lat"]
     lon = request.form["lon"]
 
     if not lat or not lon:
         conn.close()
-        return "<h3>❌ Please enable location and refresh page.</h3>"
+        return "<h3>❌ Please enable location</h3>"
 
     distance = calculate_distance(float(lat), float(lon), CLASS_LAT, CLASS_LON)
 
     if distance > ALLOWED_RADIUS:
         conn.close()
-        return "<h3>❌ You are outside classroom (50m limit)</h3>"
+        return "<h3>❌ You are outside classroom (50m)</h3>"
 
     today = datetime.now().strftime("%Y-%m-%d")
     time_now = datetime.now().strftime("%H:%M:%S")
-    ip_address = request.remote_addr
+    ip = request.remote_addr
 
-    # Roll duplicate check
+    # Roll check
     cursor.execute("SELECT * FROM attendance WHERE roll=? AND date=?", (roll, today))
     if cursor.fetchone():
         conn.close()
-        return "<h3>⚠️ Attendance already marked for this Roll today.</h3>"
+        return "<h3>⚠️ Roll already marked</h3>"
 
-    # IP duplicate check
-    cursor.execute("SELECT * FROM attendance WHERE ip=? AND date=?", (ip_address, today))
+    # IP check
+    cursor.execute("SELECT * FROM attendance WHERE ip=? AND date=?", (ip, today))
     if cursor.fetchone():
         conn.close()
-        return "<h3>⚠️ Attendance already submitted from this device today.</h3>"
+        return "<h3>⚠️ Device already used today</h3>"
 
     cursor.execute(
         "INSERT INTO attendance (roll, name, ip, time, date) VALUES (?, ?, ?, ?, ?)",
-        (roll, name, ip_address, time_now, today)
+        (roll, name, ip, time_now, today)
     )
 
     conn.commit()
@@ -177,14 +131,7 @@ def teacher_login():
         else:
             return "<h3>❌ Wrong Password</h3>"
 
-    return """
-    <h2>Teacher Login</h2>
-    <form method="POST">
-        Password:<br>
-        <input type="password" name="password"><br><br>
-        <button type="submit">Login</button>
-    </form>
-    """
+    return render_template("login.html")
 
 # -------- DASHBOARD --------
 @app.route("/dashboard")
@@ -205,24 +152,12 @@ def dashboard():
 
     conn.close()
 
-    html = "<h2>Today's Attendance</h2>"
+    return render_template("dashboard.html",
+                           today=today,
+                           status=status,
+                           records=records)
 
-    if status == 0:
-        html += '<a href="/open"><button>Open Attendance</button></a><br><br>'
-    else:
-        html += '<a href="/close"><button>Close Attendance</button></a><br><br>'
-
-    html += "<table border=1><tr><th>Roll</th><th>Name</th><th>Time</th><th>IP</th></tr>"
-
-    for r in records:
-        html += f"<tr><td>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td></tr>"
-
-    html += "</table><br>"
-    html += '<a href="/download">Download CSV</a><br><br>'
-    html += '<a href="/logout">Logout</a>'
-
-    return html
-# -------- OPEN ATTENDANCE --------
+# -------- OPEN --------
 @app.route("/open")
 def open_attendance():
     if not session.get("teacher"):
@@ -236,7 +171,7 @@ def open_attendance():
 
     return redirect(url_for("dashboard"))
 
-# -------- CLOSE ATTENDANCE --------
+# -------- CLOSE --------
 @app.route("/close")
 def close_attendance():
     if not session.get("teacher"):
@@ -250,7 +185,7 @@ def close_attendance():
 
     return redirect(url_for("dashboard"))
 
-# -------- DOWNLOAD CSV --------
+# -------- DOWNLOAD --------
 @app.route("/download")
 def download():
     if not session.get("teacher"):
@@ -280,7 +215,4 @@ def logout():
 
 # -------- RUN --------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
-
-
-
+    app.run()
