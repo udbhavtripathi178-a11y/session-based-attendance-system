@@ -10,7 +10,7 @@ app.secret_key = "supersecretkey123"
 # -------- CLASSROOM LOCATION --------
 CLASS_LAT = 28.425335
 CLASS_LON = 77.326069
-ALLOWED_RADIUS = 50
+ALLOWED_RADIUS = 30
 
 TEACHER_PASSWORD = "admin123"
 
